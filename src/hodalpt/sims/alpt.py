@@ -20,8 +20,8 @@ from . import quijote as Q
 
 
 def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
-                 zsnap=0.5, lambdath_tweb=0.0, lambdath_twebdelta = 0.0,
-                 seed=123456, silent=True): 
+                 zsnap=0.5, lambdath_tweb=0.0, lambdath_twebdelta=0.0,
+                 bias_model='local', subgrid=False, seed=123456, silent=True): 
     ''' construct CosmicSignal galaxy mock given DM box. Applies the bias model
     in hodalpt.sims.cwc to specified ALPT DM output 
 
@@ -52,12 +52,18 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
     dm_dir : str
         Directory with the ALPT DM files 
 
+    bias_model : str
+        specify which bias model to use 
+
 
     return 
     ------
     xyz : array 
         Ngal x 3 array specifying the x, y, z position of galaxies.
     '''
+    if bias_model not in ['local', 'nonlocal0']: 
+        raise NotImplementedError('%s bias model not implemented yet' % bias_model) 
+
     np.random.seed(seed)
 
     assert os.path.isdir(dm_dir), "specify correct directory for the DM files"
@@ -68,18 +74,20 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
     if not silent: print(suffix)
     if not silent: print('Omega_m %f' % omega_m) 
     def Fname(prefix): return os.path.join(dm_dir, '%s%s' % (prefix, suffix))
-
-    dm_filename         = Fname('deltaBOX')
+    
+    prefix_subgrid = ''
+    if subgrid: prefix_subgrid = 'super_'
+    dm_filename         = Fname(prefix_subgrid+'deltaBOX')
     tweb_filename       = Fname('Tweb_')
     twebdelta_filename  = Fname('TwebDelta_')
 
     vx_filename = dm_dir + 'VExEULz%3.3f.dat' % zsnap
     vy_filename = dm_dir + 'VEyEULz%3.3f.dat' % zsnap
     vz_filename = dm_dir + 'VEzEULz%3.3f.dat' % zsnap
-
-    posx_filename = Fname('BOXposx')
-    posy_filename =	Fname('BOXposy')
-    posz_filename = Fname('BOXposz')
+    
+    posx_filename = Fname(prefix_subgrid+'BOXposx')
+    posy_filename =	Fname(prefix_subgrid+'BOXposy')
+    posz_filename = Fname(prefix_subgrid+'BOXposz')
     
     assert os.path.isfile(dm_filename), 'missing %s' % dm_filename
     assert os.path.isfile(tweb_filename), 'missing %s' % tweb_filename
@@ -97,10 +105,10 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
     dth     = theta_gal['dth'] 
     rhoeps  = theta_gal['rhoeps']
     eps     = theta_gal['eps']     
-    rhoepsprime = 0.
-    epsprime    = 0.
     nmean   = theta_gal['nmean'] # yes, this is weird but lets not overthink it for now 
-
+    if bias_model  == 'local': 
+        rhoepsprime = theta_gal['rhoepsprime'] 
+        epsprime    = theta_gal['epsprime']
 
     # parse rsd parameters
     bv      = theta_rsd['bv'] 
@@ -108,14 +116,7 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
     betarsd = theta_rsd['betarsd']
     gamma   = theta_rsd['gamma'] 
     
-    # Observer positions            
-    obspos = [Lbox/2., Lbox/2., Lbox/2.]
-
     lcell = Lbox/Ngrid
-
-    xobs = obspos[0]
-    yobs = obspos[1]
-    zobs = obspos[2]
     
     if not silent: print('Reading input ...')
     # read inputs 
@@ -130,6 +131,11 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
     posy = np.fromfile(posy_filename, dtype=np.float32) 
     posz = np.fromfile(posz_filename, dtype=np.float32)
 
+    # impose boundary conditions 
+    posx = (posx + Lbox) % Lbox
+    posy = (posy + Lbox) % Lbox
+    posz = (posz + Lbox) % Lbox
+
     # Now they are velocity vectors
     vx = np.fromfile(vx_filename, dtype=np.float32)  
     vy = np.fromfile(vy_filename, dtype=np.float32) 
@@ -137,8 +143,8 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
 
     # Reshape arrays from 1D to 3D --> reshape only arrays which have mesh structure, e.g. NOT positions
     #delta = np.reshape(delta, (Ngrid,Ngrid,Ngrid))
-    tweb = np.reshape(tweb, (Ngrid,Ngrid,Ngrid))
-    twebdelta = np.reshape(twebdelta, (Ngrid,Ngrid,Ngrid))
+    tweb        = np.reshape(tweb, (Ngrid,Ngrid,Ngrid))
+    twebdelta   = np.reshape(twebdelta, (Ngrid,Ngrid,Ngrid))
 
     vx = np.reshape(vx, (Ngrid,Ngrid,Ngrid))
     vy = np.reshape(vy, (Ngrid,Ngrid,Ngrid))
@@ -146,7 +152,14 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
 
     # Apply the bias and get halo/galaxy number counts
     if not silent: print('Getting number counts via parametric bias ...')
-    ncounts = C.biasmodel_local_box(Ngrid, Lbox, delta,  nmean, alpha, beta, dth, rhoeps, eps, rhoepsprime, epsprime, xobs, yobs, zobs)
+    if bias_model == 'local': 
+        ncounts = C.biasmodel_local_box(Ngrid, Lbox, delta,  nmean, alpha, beta, dth, rhoeps, eps, 
+                                        rhoepsprime, epsprime)
+    elif bias_model == 'nonlocal0': 
+        ncounts = C.biasmodel_nonlocal_box(Ngrid, Lbox, delta, tweb, twebdelta, 
+                                  nmean, alpha, beta, dth, rhoeps, eps)
+    else: 
+        raise NotImplementedError('%s bias model not implemented yet' % bias_model) 
     ncountstot = np.sum(ncounts) # total number of objects
     if not silent: print('Number counts diagnostics (min, max, mean): ', np.amin(ncounts), np.amax(ncounts), np.mean(ncounts))
 
@@ -163,34 +176,23 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
     posx, posy, posz = C.real_to_redshift_space_local_box(delta, tweb, posx,
                                                           posy, posz, vx, vy,
                                                           vz, Ngrid, Lbox,
-                                                          xobs, yobs, zobs, bv,
-                                                          bb, betarsd, gamma,
+                                                          bv, bb, betarsd, gamma,
                                                           zsnap, omega_m) 
     
     return np.vstack([posx, posy, posz]).T
 
 
-def CSbox_alpt(config_file, outdir, seed=0, make_ics=True, return_pos=True, silent=True): 
+def CSbox_alpt(ic_path, outdir, seed=0, dgrowth_short=5., ngrid=256,
+               lbox=1000., zsnap=0.5, lambdath_tweb=0., lambdath_twebdelta=0., 
+               make_ics=True, subgrid=True, return_pos=True, silent=True): 
     ''' wrapper for CosmicSignal ALPT code 
     '''
-    # parse config file 
-    config = configparser.ConfigParser()
-    config.read(config_file)
-
-    ngrid = int(config['SETUP']['ngrid'])
-    lbox = config['SETUP']['lbox']
-
-    zsnap = config['SETUP']['zsnap'].split(' ')
+    zsnap = [zsnap] 
     assert len(zsnap) == 1
     zmin = zsnap[0] # hardcoded
     zmax = zsnap[0] # hardcoded
 
-    lambdath_tweb = config['SETUP']['lambdath_tweb']
-    lambdath_twebdelta = config['SETUP']['lambdath_twebdelta']
-
-    # ICs
-    ic_path = os.path.join(config['ICs']['quijote_path'], 'ICs')
-    ic_paramfile = config['ICs']['ic_paramfile']
+    ic_paramfile = '2LPT.param' # hardcoded IC filename in Quijote 
 
     # webonx executable should be in same directory as this script
     scriptdir = os.path.dirname(__file__)
@@ -198,7 +200,6 @@ def CSbox_alpt(config_file, outdir, seed=0, make_ics=True, return_pos=True, sile
     assert os.path.isfile(webonx), "webonx executable not found"
 
     os.makedirs(outdir, exist_ok=True) # make output directory in case it doesn't exist 
-    os.system('cp %s %s' % (config_file, outdir)) # copy config file for clarity 
 
     # Set cosmological parameters for this run from Quijote IC  
     omega_m, omega_b, w0, n_s, wa, sigma8, hh = _read_cosmo_pars_from_config(ic_path, ic_paramfile)
@@ -210,7 +211,8 @@ def CSbox_alpt(config_file, outdir, seed=0, make_ics=True, return_pos=True, sile
     _write_cosmology_par_input_file(omega_m, omega_b, w0, n_s, wa, sigma8, hh, outdir)
 
     # write input parameter file 
-    _write_input_par_file(ngrid, lbox, seed, 1, lambdath_tweb, lambdath_twebdelta, omega_m, zmin, zmax, outdir)
+    _write_input_par_file(ngrid, lbox, seed, 1, lambdath_tweb,
+                          lambdath_twebdelta, omega_m, dgrowth_short, zmin, zmax, outdir)
     
     if make_ics: 
         if not silent: print(f'Computing and writing out delta IC')
@@ -228,6 +230,20 @@ def CSbox_alpt(config_file, outdir, seed=0, make_ics=True, return_pos=True, sile
     else: subprocess.run([webonx,], stdout=subprocess.DEVNULL)
     sys.stdout.flush()
 
+    prefix_subgrid = ''
+    if subgrid: 
+        prefix_subgrid = 'super_'
+
+        # write input parameter file for subgrid model 
+        _write_input_par_file(ngrid, lbox, seed, -70, lambdath_tweb,
+                              lambdath_twebdelta, omega_m, dgrowth_short, zmin, zmax, outdir)
+        # run subgrid model 
+        if not silent: print(f'Running subgrid model')
+        sys.stdout.flush()
+        if not silent: subprocess.run([webonx,])
+        else: subprocess.run([webonx,], stdout=subprocess.DEVNULL)
+        sys.stdout.flush()
+
     if not return_pos: 
         return None 
     else: 
@@ -236,20 +252,26 @@ def CSbox_alpt(config_file, outdir, seed=0, make_ics=True, return_pos=True, sile
         except IndexError:
             # let webonx finish running 
             import time 
-            print('sleeping to let webonx finish') 
+            if not silent: print('sleeping to let webonx finish') 
             time.sleep(15)
             suffix = 'OM'+(glob.glob(os.path.join(outdir, 'deltaBOXOM*'))[0].split('deltaBOXOM')[-1]).split('.gz')[0]
 
-        posx = np.fromfile(os.path.join(outdir, 'BOXposx%s' % suffix), dtype=np.float32)
-        posy = np.fromfile(os.path.join(outdir, 'BOXposy%s' % suffix), dtype=np.float32)
-        posz = np.fromfile(os.path.join(outdir, 'BOXposz%s' % suffix), dtype=np.float32)
+        posx = np.fromfile(os.path.join(outdir, prefix_subgrid+'BOXposx%s' % suffix), dtype=np.float32)
+        posy = np.fromfile(os.path.join(outdir, prefix_subgrid+'BOXposy%s' % suffix), dtype=np.float32)
+        posz = np.fromfile(os.path.join(outdir, prefix_subgrid+'BOXposz%s' % suffix), dtype=np.float32)
+
+        # impose boundary conditions 
+        posx = (posx + lbox) % lbox
+        posy = (posy + lbox) % lbox
+        posz = (posz + lbox) % lbox
         
         return np.vstack([posx, posy, posz]).T
 
         
-def _write_input_par_file(ngrid, lbox, seed, sfmodel, lambdath_tweb, lambdath_twebdelta, omegam, zmin, zmax, outdir):
+def _write_input_par_file(ngrid, lbox, seed, sfmodel, lambdath_tweb, lambdath_twebdelta, omegam, dgrowth_short, zmin, zmax, outdir):
     ff = open(os.path.join(outdir, 'input.par'), 'w')
-
+    
+    omegam = _cpp_round(omegam, decimals=3) # convert python rounding to C++ rounding 
     omegal = 1. - omegam
     
     ff.write('#---------------------------------------------------------------------\n')
@@ -262,17 +284,17 @@ def _write_input_par_file(ngrid, lbox, seed, sfmodel, lambdath_tweb, lambdath_tw
     ff.write('Lx = %s # Box length in x-direction [Mpc/h]\n' %str(lbox))
     ff.write('#---------------------------------------------------------------------\n')
     ff.write('fnameIC = Quijote_ICs_delta_z127_n256_CIC.DAT# Attention no space after = unless you give a name\n')
-    ff.write('fnameDM = deltaBOXOM%3.3fOL%3.3fG%dV%s.dat\n' %(omegam, omegal, ngrid, str(round(float(lbox),1))))
+    ff.write('fnameDM = deltaBOXOM%3.3fOL%3.3fG%dV%s_ALPTrs5.000z%3.3f.dat\n' %(omegam, omegal, ngrid, str(round(float(lbox),1)), zmin))
     ff.write('sfmodel = %s\n' %str(sfmodel))
     ff.write('filter = 1\n')
-    ff.write('dgrowth_short = 5.\n')
-    ff.write('rsml = 50.0\n')
+    ff.write('dgrowth_short = %s\n' % str(dgrowth_short))
+    ff.write('rsml = 1.0\n')
     ff.write('dtol = 0.005\n')
     ff.write('curlfrac = 0\n')
     ff.write('write_box = true\n')
     ff.write('check_calibration = false\n')
     ff.write('#---------------------------------------------------------------------\n')
-    ff.write('z = 0.\n')
+    ff.write('z = %s\n' % zmin)
     ff.write('zref = 127.\n')
     ff.write('slength = 5\n')
     ff.write('#---------------------------------------------------------------------\n')
@@ -308,7 +330,7 @@ def _write_z_input_file(zsnap, outdir):
     ff = open(os.path.join(outdir, 'z_input.par'), 'w')
 
     for ii in range(len(zsnap)):
-        ff.write(zsnap[ii] + '\n')
+        ff.write(str(zsnap[ii]) + '\n')
     ff.close()
     return None 
 
@@ -465,3 +487,8 @@ def get_cic(posx, posy, posz, weight, lbox, ngrid):
         delta[indxl,indyl,indzl] += ww * wxl*wyl*wzl
 
     return delta
+
+
+def _cpp_round(arr, decimals=3):
+    factor = 10.0 ** decimals
+    return np.sign(arr) * np.floor(np.abs(arr) * factor + 0.5) / factor

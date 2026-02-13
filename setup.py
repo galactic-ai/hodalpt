@@ -24,7 +24,8 @@ INSTALL_REQUIRES = [
         "h5py>=2.10",
         "hdf5plugin", 
         "matplotlib", 
-        "halotools"
+        "halotools", 
+        "simbig" 
 ]
 # END PROJECT SPECIFIC
 

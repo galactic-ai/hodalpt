@@ -391,6 +391,7 @@ def _fname_format(snapshot):
         raise Exception('File (%s) not found!' % snapshot)
     return filename,fformat
 
+
 def Box_RSD(cat, LOS=[0,0,1], Lbox=1000.):
     ''' Given a halo/galaxy catalog in a periodic box, apply redshift space
     distortion specified LOS along LOS
