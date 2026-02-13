@@ -84,7 +84,8 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
     vx_filename = dm_dir + 'VExEULz%3.3f.dat' % zsnap
     vy_filename = dm_dir + 'VEyEULz%3.3f.dat' % zsnap
     vz_filename = dm_dir + 'VEzEULz%3.3f.dat' % zsnap
-    
+   
+    if not silent: print('reading %s' % Fname(prefix_subgrid+'BOXpos*'))
     posx_filename = Fname(prefix_subgrid+'BOXposx')
     posy_filename =	Fname(prefix_subgrid+'BOXposy')
     posz_filename = Fname(prefix_subgrid+'BOXposz')

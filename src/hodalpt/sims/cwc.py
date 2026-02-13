@@ -210,11 +210,9 @@ def biasmodel_nonlocal_box(ngrid, lbox, delta, tweb, dweb, nmean_arr, alpha_arr,
 
                 nmean   = nmean_arr[indtweb, inddweb]
                 alpha   = alpha_arr[indtweb, inddweb] 
-                beta    = beta_arr[indtweb, inddweb]
                 dth     = dth_arr[indtweb, inddweb] # could potentially remove 
                 rhoeps  = rhoeps_arr[indtweb, inddweb]
                 eps     = eps_arr[indtweb, inddweb]
-                #nmean *= 0.1 # why? 
                 
                 if delta[ii,jj,kk] < dth:
                     ncounts[ii,jj,kk] = 0.
@@ -223,7 +221,7 @@ def biasmodel_nonlocal_box(ngrid, lbox, delta, tweb, dweb, nmean_arr, alpha_arr,
                     denstot_arr[indtweb,inddweb] += ncounts[ii,jj,kk]
     
     # SECOND LOOP: stochastic bias - we need to compute the right normalization beforehand
-    denstot /= lbox**3
+    denstot_arr /= lbox**3
 
     for ii in prange(ngrid):
         for jj in range(ngrid):
@@ -232,7 +230,8 @@ def biasmodel_nonlocal_box(ngrid, lbox, delta, tweb, dweb, nmean_arr, alpha_arr,
                 inddweb = int(dweb[ii,jj,kk])-1
 
                 denstot = denstot_arr[indtweb,inddweb]
-                nmean = nmean_arr[indtweb,inddweb]
+                nmean   = nmean_arr[indtweb,inddweb]
+                beta    = beta_arr[indtweb, inddweb]
 
                 ncounts[ii,jj,kk] = nmean / denstot * ncounts[ii,jj,kk]
                 pnegbin = 1 - ncounts[ii,jj,kk]/(ncounts[ii,jj,kk] + beta)
