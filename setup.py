@@ -25,7 +25,8 @@ INSTALL_REQUIRES = [
         "hdf5plugin", 
         "matplotlib", 
         "halotools", 
-        "simbig" 
+        "simbig", 
+        "numba"
 ]
 # END PROJECT SPECIFIC
 
