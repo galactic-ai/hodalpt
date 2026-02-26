@@ -103,11 +103,11 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
     # parse galaxy bias parameters 
     alpha   = theta_gal['alpha']  
     beta    = theta_gal['beta']
-    dth     = theta_gal['dth'] 
-    rhoeps  = theta_gal['rhoeps']
-    eps     = theta_gal['eps']     
     nmean   = theta_gal['nmean'] # yes, this is weird but lets not overthink it for now 
     if bias_model  == 'local': 
+        dth     = theta_gal['dth'] 
+        rhoeps  = theta_gal['rhoeps']
+        eps     = theta_gal['eps']     
         rhoepsprime = theta_gal['rhoepsprime'] 
         epsprime    = theta_gal['epsprime']
 
@@ -158,7 +158,7 @@ def CSbox_galaxy(theta_gal, theta_rsd, dm_dir, Ngrid=256, Lbox=1000.,
                                         rhoepsprime, epsprime)
     elif bias_model == 'nonlocal0': 
         ncounts = C.biasmodel_nonlocal_box(Ngrid, Lbox, delta, tweb, twebdelta, 
-                                  nmean, alpha, beta, dth, rhoeps, eps)
+                                  nmean, alpha, beta)#, dth, rhoeps, eps)
     else: 
         raise NotImplementedError('%s bias model not implemented yet' % bias_model) 
     ncountstot = np.sum(ncounts) # total number of objects

@@ -184,7 +184,7 @@ def biasmodel_local_box(ngrid, lbox, delta, nmean, alpha, beta, dth, rhoeps, eps
 
 
 @njit(parallel=True, cache=True, fastmath=True)
-def biasmodel_nonlocal_box(ngrid, lbox, delta, tweb, dweb, nmean_arr, alpha_arr, beta_arr, dth_arr, rhoeps_arr, eps_arr):
+def biasmodel_nonlocal_box(ngrid, lbox, delta, tweb, dweb, nmean_arr, alpha_arr, beta_arr):#, dth_arr, rhoeps_arr, eps_arr):
     ''' compute bias model with non-local terms. more documentation to come. 
 
 
