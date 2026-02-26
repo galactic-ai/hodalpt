@@ -188,7 +188,7 @@ def IC(_dir):
         directory that contains the snapshots and IC files e.g.
         /$QUIJOTE/latin_hypercube_HR/0/
     '''
-    return _read_snap(os.path.join(_dir, 'ICs', 'ICs'))
+    return _read_snap(os.path.join(_dir, 'ICs', 'ics'))
 
 
 class Snap(object): 
